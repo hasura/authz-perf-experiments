@@ -79,6 +79,18 @@ explain analyze select * from "Track";
 (12 rows)
 ```
 
+### Query and benchmark performance through pgbench
+Refer https://www.postgresql.org/docs/current/pgbench.html
+
+```
+pgbench -h localhost -p 5433 -U postgres postgres -f postgres/benchmark_script.sql -c 100 -j 10
+```
+
+where
+c is number of concurrent database clients (default: 1)
+and
+j is number of threads (default: 1)
+
 ## Hasura GraphQL Engine
 
 ### Start Engine
@@ -123,6 +135,8 @@ FROM generate_series(3504, 10000000) AS t(i);
 
 ![Track Tables](screenshots/track-tables.png)
 
+- Click on `Track All` to track all foreign-key relationships.
+
 ![Track Foreign Key Relationships](screenshots/track-foreign-key-relationships.png)
 
 ### Setup role and policies
@@ -162,6 +176,81 @@ Click on `Analyze` to view `Generated SQL`.
  Planning Time: 1.937 ms
  Execution Time: 0.542 ms
 (11 rows)
+```
+
+### Query and benchmark performance through pgbench
+Save the `Generated SQL` in a `.sql` file.
+
+```
+pgbench -h localhost -p 5432 -U postgres postgres -f <file-name>.sql -c 100 -j 10
+```
+
+where
+c is number of concurrent database clients (default: 1)
+and
+j is number of threads (default: 1)
+
+### Query and benchmark GraphQL API performance through graphql-bench
+Refer https://github.com/hasura/graphql-bench
+
+Follow the setup instructions.
+
+In `graphql-bench/app/cli/bin` directory:
+
+Update config
+```
+url: 'http://localhost:8080/v1/graphql'
+headers:
+    X-Hasura-Role: user
+    X-Hasura-Artist-Id: 116
+# "Debug" mode enables request and response logging for Autocannon and K6
+# This lets you see what is happening and confirm proper behavior.
+# This should be disabled for genuine benchmarks, and only used for debugging/visibility.
+debug: false
+queries:
+    # Name: Unique name for the query
+  - name: SearchTracksWithArtist
+    # Tools: List of benchmarking tools to run: ['autocannon', 'k6', 'wrk2']
+    tools: [autocannon, k6]
+    # Execution Strategy: the type of the benchmark to run. Options are:
+    # REQUESTS_PER_SECOND: Fixed duration, fixed rps. Example parameters:
+    #   duration: 10s
+    #   rps: 500
+    # FIXED_REQUEST_NUMBER: Complete requests as fast as possible, no duration. Example parameters:
+    #   requests: 10000
+    # MAX_REQUESTS_IN_DURATION: Make as many requests as possible in duration. Example parameters:
+    #   duration: 10s
+    # MULTI_STAGE: (K6 only currently) Several stages of REQUESTS_PER_SECOND benchmark. Example parameters:
+    #   initial_rps: 0
+    #   stages:
+    #     - duration: 5s
+    #       target: 100
+    #     - duration: 10s
+    #       target: 1000
+    # CUSTOM: Pass completely custom options to each tool (see full API spec for all supported options, very large)
+    execution_strategy: REQUESTS_PER_SECOND
+    rps: 100
+    duration: 1s
+    connections: 10
+    query: |
+      query SearchTracksWithArtist {
+        Track {
+          AlbumId
+          Bytes
+          Composer
+          GenreId
+          MediaTypeId
+          Milliseconds
+          Name
+          TrackId
+          UnitPrice
+        }
+      }
+```
+
+Run:
+```
+./run query -c config.yaml
 ```
 
 ## Conclusion
